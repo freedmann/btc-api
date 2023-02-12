@@ -1,0 +1,19 @@
+version: "3.3"
+services:
+    nginx:
+        build:
+            context: .
+            dockerfile: docker/Nginx.Dockerfile
+        image: nginx
+        ports:
+             - 8000:80
+        links:
+            - fpm
+        volumes:
+            -   ./:/var/www/html
+    fpm:
+        build:
+            context: .
+            dockerfile: docker/Fpm.Dockerfile
+        volumes:
+            -   ./:/var/www/html
