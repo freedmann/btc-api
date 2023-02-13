@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Response;
+use App\Models\Btc;
+
 
 class BtcController extends Controller
 {
@@ -26,20 +28,7 @@ class BtcController extends Controller
 
     private function currencyRates($request, $ratesData)
     {
-        $responseData=array();
-        $currency = $request->input('currency');
-        if (isset($currency))
-            {
-                if (isset($ratesData[$currency]))
-                    $responseData[$currency]=$ratesData[$currency]["last"]+($ratesData[$currency]["last"]/100*2);
-            }
-        else
-            {
-                foreach ($ratesData as $rateItem){
-                    $responseData[$rateItem['symbol']]=$rateItem["last"]+($rateItem["last"]/100*2);
-                }
-                asort($responseData);
-            }
+        $responseData=Btc::getRates($request, $ratesData);
         if (count($responseData)==0) return $this->showError();
 
         return response()->json(array(
@@ -55,40 +44,10 @@ class BtcController extends Controller
         $currencyFrom = $request->input('currency_from');
         $currencyTo = $request->input('currency_to');
         $convertValue = $request->input('value');
-        $responseData=array();
-        if ($convertValue<0.1)
+        $responseData = Btc::getConvert($currencyFrom, $currencyTo, $convertValue, $ratesData);
+
+        if (!is_array($responseData))
             return $this->showError();
-
-        if ($currencyFrom=='BTC')
-            {
-                if (!isset($ratesData[$currencyTo]["last"]))
-                    return $this->showError();
-                $rate=$ratesData[$currencyTo]["last"];
-                $convertedValue=$convertValue*$rate;
-                $comission=$convertValue*$rate/100*2;
-                $convertedValue=$convertedValue+$comission;
-                $convertedValue=round($convertedValue, 10);
-
-            }
-        elseif ($currencyTo=='BTC')
-            {
-                if (!isset($ratesData[$currencyFrom]["last"]))
-                    return $this->showError();
-                $rate=$ratesData[$currencyFrom]["last"];
-                $convertedValue=$convertValue/$rate;
-                $comission=$convertValue/$rate/100*2;
-                $convertedValue=$convertedValue+$comission;
-                $convertedValue=round($convertedValue, 10);
-
-            }
-        else
-            return $this->showError();
-
-        $responseData["currency_from"] = $currencyFrom;
-        $responseData["currency_to"] = $currencyTo;
-        $responseData["value"] = $convertValue;
-        $responseData["converted_value"] = $convertedValue;
-        $responseData["rate"] = $rate;
 
         return response()->json(array(
             'status'  =>  'success',
@@ -99,11 +58,13 @@ class BtcController extends Controller
 
     public function callAPI(Request $request)
     {
+        $private_token=config('constants.api_key');
         $token= request()->bearerToken();
-        if ($token<>"S7dh-S8_2jdh76d35tsGDfs-sj_jdSD_88SdKj7-2d7G-2LMv_78AuI-3$31J7F")
+        if ($token<>$private_token)
             return $this->showError();
         $method = $request->input('method');
-        $rates=json_decode(file_get_contents('https://blockchain.info/ticker'),true);
+        $ticker_url=config('constants.btc_ticker_url');
+        $rates=json_decode(file_get_contents($ticker_url),true);
         if (!is_array($rates)) return $this->showError();
         if ($method=='rates'){
             return $this->currencyRates($request,$rates);
